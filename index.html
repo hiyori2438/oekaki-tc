@@ -21,12 +21,6 @@
     let canvas = document.getElementById('canvas');
     let context = canvas.getContext('2d');
 
-    const storedHashes = {
-      "abc123hashvalue...": "media1.jpg",
-      "def456hashvalue...": "media2.mp4"
-      // ↑あとでここに「登録済み画像のハッシュ」と「表示させたいファイル名」を追加する
-    };
-
     function startCamera() {
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(stream => video.srcObject = stream)
@@ -44,17 +38,28 @@
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      if (storedHashes[hashHex]) {
-        const filename = storedHashes[hashHex];
-        const ext = filename.split('.').pop();
-        if (ext === 'mp4') {
-          document.getElementById('result').innerHTML = `<video src="${filename}" controls autoplay loop></video>`;
-        } else {
-          document.getElementById('result').innerHTML = `<img src="${filename}" style="max-width:100%;">`;
-        }
-      } else {
-        document.getElementById('result').innerText = "一致する絵が見つかりませんでした。";
-      }
+      const dbRequest = indexedDB.open('OekakiDB', 1);
+      dbRequest.onsuccess = function(e) {
+        const db = e.target.result;
+        const tx = db.transaction('drawings', 'readonly');
+        const store = tx.objectStore('drawings');
+        const getReq = store.get(hashHex);
+
+        getReq.onsuccess = function() {
+          const media = getReq.result;
+          if (media) {
+            if (media.startsWith("data:video")) {
+              document.getElementById('result').innerHTML =
+                `<video src="${media}" controls autoplay loop style="max-width:100%"></video>`;
+            } else {
+              document.getElementById('result').innerHTML =
+                `<img src="${media}" style="max-width:100%;">`;
+            }
+          } else {
+            document.getElementById('result').innerText = "一致する絵が見つかりませんでした。";
+          }
+        };
+      };
     }
   </script>
 </body>
