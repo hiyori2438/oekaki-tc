@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>おえかき登録</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input, button { display: block; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h2>おえかき登録</h2>
+  <label>絵の画像（jpg/png）:</label>
+  <input type="file" id="drawingInput" accept="image/*">
+
+  <label>紐づける画像 or 動画:</label>
+  <input type="file" id="mediaInput" accept="image/*,video/*">
+
+  <button onclick="register()">登録する</button>
+  <div id="status"></div>
+
+  <script>
+    async function register() {
+      const drawingFile = document.getElementById('drawingInput').files[0];
+      const mediaFile = document.getElementById('mediaInput').files[0];
+      const status = document.getElementById('status');
+
+      if (!drawingFile || !mediaFile) {
+        status.innerText = '両方のファイルを選んでください。';
+        return;
+      }
+
+      const drawingBuffer = await drawingFile.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', drawingBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const mediaDataUrl = e.target.result;
+        const dbRequest = indexedDB.open('OekakiDB', 1);
+
+        dbRequest.onupgradeneeded = function(e) {
+          e.target.result.createObjectStore('drawings');
+        };
+
+        dbRequest.onsuccess = function(e) {
+          const db = e.target.result;
+          const tx = db.transaction('drawings', 'readwrite');
+          const store = tx.objectStore('drawings');
+          store.put(mediaDataUrl, hashHex);
+          tx.oncomplete = () => {
+            status.innerText = '登録が完了しました！';
+          };
+        };
+      };
+      reader.readAsDataURL(mediaFile);
+    }
+  </script>
+</body>
+</html>
