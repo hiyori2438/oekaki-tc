@@ -2,10 +2,60 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>おえかきタイムカプセル</title>
+  <title>おえかきスキャン</title>
+  <style>
+    video, canvas { width: 100%; max-width: 300px; margin-top: 10px; }
+    #result { margin-top: 20px; font-weight: bold; }
+  </style>
 </head>
 <body>
-  <h1>ようこそ！</h1>
-  <p>このページはGitHub Pagesで公開されています。</p>
+  <h2>おえかきをカメラでスキャン</h2>
+  <button onclick="startCamera()">カメラを起動</button>
+  <video id="camera" autoplay playsinline></video>
+  <button onclick="capture()">この画像で照合</button>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <div id="result">← 撮影して照合！</div>
+
+  <script>
+    let video = document.getElementById('camera');
+    let canvas = document.getElementById('canvas');
+    let context = canvas.getContext('2d');
+
+    const storedHashes = {
+      "abc123hashvalue...": "media1.jpg",
+      "def456hashvalue...": "media2.mp4"
+      // ↑あとでここに「登録済み画像のハッシュ」と「表示させたいファイル名」を追加する
+    };
+
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => video.srcObject = stream)
+        .catch(err => alert("カメラの起動に失敗しました: " + err));
+    }
+
+    async function capture() {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+      const arrayBuffer = await blob.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      if (storedHashes[hashHex]) {
+        const filename = storedHashes[hashHex];
+        const ext = filename.split('.').pop();
+        if (ext === 'mp4') {
+          document.getElementById('result').innerHTML = `<video src="${filename}" controls autoplay loop></video>`;
+        } else {
+          document.getElementById('result').innerHTML = `<img src="${filename}" style="max-width:100%;">`;
+        }
+      } else {
+        document.getElementById('result').innerText = "一致する絵が見つかりませんでした。";
+      }
+    }
+  </script>
 </body>
 </html>
