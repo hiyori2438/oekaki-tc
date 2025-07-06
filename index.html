@@ -22,9 +22,7 @@
     let context = canvas.getContext('2d');
 
     function startCamera() {
-      navigator.mediaDevices.getUserMedia({
-  video: { facingMode: { exact: "environment" } }
-})
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })  // 外カメラ優先
         .then(stream => video.srcObject = stream)
         .catch(err => alert("カメラの起動に失敗しました: " + err));
     }
@@ -40,29 +38,42 @@
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      const dbRequest = indexedDB.open('OekakiDB', 1);
-      dbRequest.onsuccess = function(e) {
+      const dbReq = indexedDB.open("DrawingMediaDB", 1);
+      dbReq.onsuccess = function(e) {
         const db = e.target.result;
-        const tx = db.transaction('drawings', 'readonly');
-        const store = tx.objectStore('drawings');
+        const tx = db.transaction("pairs", "readonly");
+        const store = tx.objectStore("pairs");
         const getReq = store.get(hashHex);
 
         getReq.onsuccess = function() {
-          const media = getReq.result;
-          if (media) {
-            if (media.startsWith("data:video")) {
-              document.getElementById('result').innerHTML =
-                `<video src="${media}" controls autoplay loop style="max-width:100%"></video>`;
-            } else {
-              document.getElementById('result').innerHTML =
-                `<img src="${media}" style="max-width:100%;">`;
-            }
-          } else {
+          const mediaBlob = getReq.result;
+          if (!mediaBlob) {
             document.getElementById('result').innerText = "一致する絵が見つかりませんでした。";
+            return;
+          }
+
+          const url = URL.createObjectURL(mediaBlob);
+          const type = mediaBlob.type;
+
+          if (type.startsWith("video/")) {
+            document.getElementById('result').innerHTML = `<video src="${url}" controls autoplay loop style="max-width:100%;"></video>`;
+          } else if (type.startsWith("image/")) {
+            document.getElementById('result').innerHTML = `<img src="${url}" style="max-width:100%;">`;
+          } else {
+            document.getElementById('result').innerText = "対応していないメディア形式です。";
           }
         };
+
+        getReq.onerror = function() {
+          document.getElementById('result').innerText = "データ取得に失敗しました。";
+        };
+      };
+
+      dbReq.onerror = function() {
+        alert("IndexedDBの読み取りに失敗しました。");
       };
     }
   </script>
 </body>
 </html>
+
