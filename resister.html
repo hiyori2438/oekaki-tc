@@ -5,53 +5,62 @@
   <title>おえかき登録</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
-    input, button { display: block; margin-top: 10px; }
+    input, button { margin: 10px 0; display: block; }
+    video, img { max-width: 300px; margin-top: 10px; }
   </style>
 </head>
 <body>
   <h2>おえかき登録</h2>
-  <label>絵の画像（jpg/png）:</label>
-  <input type="file" id="drawingInput" accept="image/*">
 
-  <label>紐づける画像 or 動画:</label>
-  <input type="file" id="mediaInput" accept="image/*,video/*">
+  <label>絵画像を選択：</label>
+  <input type="file" id="drawing" accept="image/*">
+
+  <label>紐づける画像 or 動画：</label>
+  <input type="file" id="media" accept="image/*,video/*">
 
   <button onclick="register()">登録する</button>
-  <div id="status"></div>
+  <div id="result"></div>
 
   <script>
     async function register() {
-      const drawingFile = document.getElementById('drawingInput').files[0];
-      const mediaFile = document.getElementById('mediaInput').files[0];
-      const status = document.getElementById('status');
+      const drawingFile = document.getElementById('drawing').files[0];
+      const mediaFile = document.getElementById('media').files[0];
+      const resultDiv = document.getElementById('result');
 
       if (!drawingFile || !mediaFile) {
-        status.innerText = '両方のファイルを選んでください。';
+        alert("絵画像とメディアを両方選んでください");
         return;
       }
 
+      // 絵のハッシュ計算
       const drawingBuffer = await drawingFile.arrayBuffer();
       const hashBuffer = await crypto.subtle.digest('SHA-256', drawingBuffer);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
+      // メディアをBase64形式で保存（IndexedDBに入れる）
       const reader = new FileReader();
-      reader.onload = function(e) {
-        const mediaDataUrl = e.target.result;
-        const dbRequest = indexedDB.open('OekakiDB', 1);
+      reader.onload = function() {
+        const mediaDataURL = reader.result;
 
+        const dbRequest = indexedDB.open("DrawingMediaDB", 1);
         dbRequest.onupgradeneeded = function(e) {
-          e.target.result.createObjectStore('drawings');
+          const db = e.target.result;
+          db.createObjectStore("pairs");
         };
 
         dbRequest.onsuccess = function(e) {
           const db = e.target.result;
-          const tx = db.transaction('drawings', 'readwrite');
-          const store = tx.objectStore('drawings');
-          store.put(mediaDataUrl, hashHex);
-          tx.oncomplete = () => {
-            status.innerText = '登録が完了しました！';
+          const tx = db.transaction("pairs", "readwrite");
+          const store = tx.objectStore("pairs");
+          store.put(mediaDataURL, hashHex);
+          tx.oncomplete = function() {
+            resultDiv.innerText = "登録完了！この絵をスキャンすれば表示されます。";
           };
+        };
+
+        dbRequest.onerror = function() {
+          alert("IndexedDBの保存に失敗しました。");
         };
       };
       reader.readAsDataURL(mediaFile);
@@ -59,3 +68,4 @@
   </script>
 </body>
 </html>
+
